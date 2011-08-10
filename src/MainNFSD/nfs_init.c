@@ -93,6 +93,10 @@ pthread_t admin_thrid;
 pthread_t fcc_gc_thrid;
 pthread_t sigmgr_thrid;
 
+#ifdef _USE_9P
+pthread_t _9p_dispatcher_thrid;
+#endif
+
 char config_path[MAXPATHLEN];
 
 /**
@@ -274,6 +278,19 @@ void nfs_set_param_default()
 #ifdef _USE_NLM
   nfs_param.core_param.program[P_NLM] = NLMPROG;
   nfs_param.core_param.port[P_NLM] = 0;
+#endif
+#ifdef _USE_9P
+  nfs_param._9p_param._9p_port = _9P_PORT ;
+  nfs_param._9p_param.hash_param.index_size = PRIME_9P ;
+  nfs_param._9p_param.hash_param.alphabet_length = 10;    /* Xid is a numerical decimal value */
+  nfs_param._9p_param.hash_param.nb_node_prealloc = NB_PREALLOC_HASH_9P;
+  nfs_param._9p_param.hash_param.hash_func_key = _9p_hash_fid_key_value_hash_func ;
+  nfs_param._9p_param.hash_param.hash_func_rbt = _9p_hash_fid_rbt_hash_func ;
+  nfs_param._9p_param.hash_param.compare_key = _9p_compare_key ;
+  nfs_param._9p_param.hash_param.key_to_str = display_9p_hash_fid_key ;
+  nfs_param._9p_param.hash_param.val_to_str = display_9p_hash_fid_val ;
+  nfs_param._9p_param.hash_param.name = "FID Hash Table" ;
+
 #endif
 #ifdef _USE_QUOTA
   nfs_param.core_param.program[P_RQUOTA] = RQUOTAPROG;
@@ -1096,6 +1113,22 @@ int nfs_set_param_from_conf(nfs_start_info_t * p_start_info)
                  "NFSv4 specific configuration read from config file");
     }
 
+#ifdef _USE_9P
+  if( ( rc = _9p_read_conf( config_struct,
+                            &nfs_param._9p_param ) ) < 0 )
+    {
+        if( rc == -2 )
+          LogDebug(COMPONENT_INIT,
+                   "No 9P configuration found, using default");
+        else
+          {
+	     LogCrit( COMPONENT_INIT,
+	   	      "Error while parsing 9P configuration" ) ;
+             return -1 ;
+          }
+    }
+#endif
+
   /* Cache inode parameters : hash table */
   if((cache_inode_status =
       cache_inode_read_conf_hash_parameter(config_struct,
@@ -1489,6 +1522,17 @@ static void nfs_Start_threads()
                errno, strerror(errno));
     }
   LogEvent(COMPONENT_THREAD, "rpc dispatcher thread was started successfully");
+
+#ifdef _USE_9P
+  /* Starting the 9p dispatcher thread */
+  if((rc = pthread_create(&_9p_dispatcher_thrid, &attr_thr, _9p_dispatcher_thread, NULL ) ) != 0 )     
+    {
+      LogFatal(COMPONENT_THREAD,
+               "Could not create  9p dispatcher_thread, error = %d (%s)",
+               errno, strerror(errno));
+    }
+  LogEvent(COMPONENT_THREAD, "9p dispatcher thread was started successfully");
+#endif
 
   /* Starting the admin thread */
   if((rc = pthread_create(&admin_thrid, &attr_thr, admin_thread, NULL)) != 0)
