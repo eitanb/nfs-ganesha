@@ -64,7 +64,6 @@ typedef struct _9p_conn__
   fd_set          fidset ; /* fd_set is used to keep track of which fid is set or not */
   pthread_mutex_t lock ; 
   long int        sockfd ;
-  int             lowest_fid ;
 } _9p_conn_t ;
 
 typedef struct _9p_hash_fid_key__
@@ -77,8 +76,8 @@ typedef struct _9p_hash_fid_key__
 typedef struct _9p_fid__
 {
   u32   fid ;
-  uid_t uid ;
-  fsal_handle_t handle ;
+  fsal_cred_t   creds ;
+  cache_entry_t * pentry ;
 } _9p_fid_t ;
 
 typedef struct _9p_request_data__
@@ -86,9 +85,6 @@ typedef struct _9p_request_data__
   char         _9pmsg[_9P_MSG_SIZE] ;
   _9p_conn_t * pconn ; 
 } _9p_request_data_t ;
-
-int _9p_attach( _9p_request_data_t * preq9p, u32 * plenout, char * preply) ;
-int _9p_version( _9p_request_data_t * preq9p, u32 * plenout, char * preply) ;
 
 #define _9p_getptr( cursor, pvar, type ) \
 do                                       \
@@ -348,24 +344,24 @@ struct _9p_str {
  * See Also://plan9.bell-labs.com/magic/man2html/2/stat
  */
 
-struct _9p_qid {
+typedef struct _9p_qid {
 	u8 type;
 	u32 version;
 	u64 path;
-};
+} _9p_qid_t;
 
 /* Bit values for getattr valid field.
  */
-#define _9P_GETATTR_MODE		0x00000001ULL
+#define _9P_GETATTR_MODE	0x00000001ULL
 #define _9P_GETATTR_NLINK	0x00000002ULL
 #define _9P_GETATTR_UID		0x00000004ULL
 #define _9P_GETATTR_GID		0x00000008ULL
-#define _9P_GETATTR_RDEV		0x00000010ULL
+#define _9P_GETATTR_RDEV	0x00000010ULL
 #define _9P_GETATTR_ATIME	0x00000020ULL
 #define _9P_GETATTR_MTIME	0x00000040ULL
 #define _9P_GETATTR_CTIME	0x00000080ULL
 #define _9P_GETATTR_INO		0x00000100ULL
-#define _9P_GETATTR_SIZE		0x00000200ULL
+#define _9P_GETATTR_SIZE	0x00000200ULL
 #define _9P_GETATTR_BLOCKS	0x00000400ULL
 
 #define _9P_GETATTR_BTIME	0x00000800ULL
@@ -377,10 +373,10 @@ struct _9p_qid {
 
 /* Bit values for setattr valid field from <linux/fs.h>.
  */
-#define _9P_SETATTR_MODE		0x00000001UL
+#define _9P_SETATTR_MODE	0x00000001UL
 #define _9P_SETATTR_UID		0x00000002UL
 #define _9P_SETATTR_GID		0x00000004UL
-#define _9P_SETATTR_SIZE		0x00000008UL
+#define _9P_SETATTR_SIZE	0x00000008UL
 #define _9P_SETATTR_ATIME	0x00000010UL
 #define _9P_SETATTR_MTIME	0x00000020UL
 #define _9P_SETATTR_CTIME	0x00000040UL
@@ -402,6 +398,13 @@ struct _9p_qid {
 /* service functions */
 int _9p_read_conf( config_file_t   in_config,
                    _9p_parameter_t *pparam ) ;
+int _9p_init( _9p_parameter_t * pparam ) ;
+int _9p_take_fid( _9p_conn_t * pconn, 
+                   u32        * pfid ) ;
+int _9p_release_fid( _9p_conn_t * pconn, 
+                     u32        * pfid ) ;
+int _9p_find_fid( _9p_conn_t * pconn, 
+                  u32        * pfid ) ;
 
 /* Protocol functions */
 int _9p_attach( _9p_request_data_t * preq9p, u32 * plenout, char * preply) ;
@@ -415,5 +418,12 @@ unsigned long int _9p_hash_fid_rbt_hash_func(hash_parameter_t * p_hparam,
 int _9p_compare_key(hash_buffer_t * buff1, hash_buffer_t * buff2) ;
 int display_9p_hash_fid_key(hash_buffer_t * pbuff, char *str) ; 
 int display_9p_hash_fid_val(hash_buffer_t * pbuff, char *str) ;
+
+int _9p_hash_fid_init( _9p_parameter_t * pparam ) ;
+int _9p_hash_fid_update( _9p_conn_t * pconn, 
+                         _9p_fid_t  * pfid ) ;
+int _9p_hash_fid_del( _9p_conn_t * pconn, 
+                      u32 fid,
+                      struct prealloc_pool * pfidpool ) ;
 
 #endif /* _9P_H */
