@@ -33,7 +33,6 @@
 #include "cache_inode.h"
 #include "cache_content.h"
 
-
 typedef uint8_t   u8;
 typedef uint16_t u16;
 typedef uint32_t u32;
@@ -64,12 +63,14 @@ typedef struct _9p_conn__
   fd_set          fidset ; /* fd_set is used to keep track of which fid is set or not */
   pthread_mutex_t lock ; 
   long int        sockfd ;
+  struct timeval  birth;  /* This is useful if same sockfd is reused on socket's close/open  */
 } _9p_conn_t ;
 
 typedef struct _9p_hash_fid_key__
 {
   u32      fid ;
   long int sockfd ;
+  struct timeval  birth; /* This is useful if same sockfd is reused on socket's close/open  */
 } _9p_hash_fid_key_t ;
 
  
@@ -86,6 +87,18 @@ typedef struct _9p_request_data__
   _9p_conn_t * pconn ; 
 } _9p_request_data_t ;
 
+typedef int (*_9p_function_t) (_9p_request_data_t * preq9p, 
+                               cache_inode_client_t * pclient,
+                               hash_table_t * ht,
+                               u32 * plenout, char * preply) ;
+
+typedef struct _9p_function_desc__
+{
+  _9p_function_t service_function;
+  char *funcname;
+} _9p_function_desc_t;
+
+
 #define _9p_getptr( cursor, pvar, type ) \
 do                                       \
 {                                        \
@@ -101,6 +114,7 @@ do                                     \
   str = cursor ;                       \
   cursor += *len ;                     \
 } while( 0 )                           
+
 #define _9p_setptr( cursor, pvar, type ) \
 do                                       \
 {                                        \
@@ -108,13 +122,14 @@ do                                       \
   cursor += sizeof( type ) ;             \
 } while( 0 ) 
 
+/* Insert a non-null terminated string */
 #define _9p_setstr( cursor, len, str ) \
 do                                     \
 {                                      \
-  *((u16 *)cursor) = *len ;            \
+  *((u16 *)cursor) = len ;            \
   cursor += sizeof( u16 ) ;            \
-  memcpy( cursor, str, *len ) ;        \
-  cursor += *len ;                     \
+  memcpy( cursor, str, len ) ;        \
+  cursor += len ;                     \
 } while( 0 )
 
 #define _9p_setinitptr( cursor, start, reqtype ) \
@@ -403,12 +418,32 @@ int _9p_take_fid( _9p_conn_t * pconn,
                    u32        * pfid ) ;
 int _9p_release_fid( _9p_conn_t * pconn, 
                      u32        * pfid ) ;
-int _9p_find_fid( _9p_conn_t * pconn, 
-                  u32        * pfid ) ;
+
 
 /* Protocol functions */
-int _9p_attach( _9p_request_data_t * preq9p, u32 * plenout, char * preply) ;
-int _9p_version( _9p_request_data_t * preq9p, u32 * plenout, char * preply) ;
+int _9p_dummy( _9p_request_data_t * preq9p, 
+               cache_inode_client_t * pclient,
+               hash_table_t * ht,
+               u32 * plenout, 
+               char * preply) ;
+
+int _9p_version( _9p_request_data_t * preq9p, 
+                 cache_inode_client_t * pclient,
+                 hash_table_t * ht,
+                 u32 * plenout, char * preply) ;
+
+int _9p_attach( _9p_request_data_t * preq9p, 
+                cache_inode_client_t * pclient,
+                hash_table_t * ht,
+                u32 * plenout, 
+                char * preply) ;
+
+int _9p_rerror( _9p_request_data_t * preq9p,
+                u16 * msgtag,
+                u32 * err, 
+                char * strerr,
+	        u32 * plenout, 
+                char * preply) ;
 
 /* hash functions */
 unsigned long int _9p_hash_fid_key_value_hash_func(hash_parameter_t * p_hparam,

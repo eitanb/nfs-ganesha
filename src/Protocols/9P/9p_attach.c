@@ -46,11 +46,17 @@
 #include "nfs_core.h"
 #include "stuff_alloc.h"
 #include "log_macros.h"
+#include "cache_inode.h"
+#include "fsal.h"
 #include "9p.h"
 
 
 
-int _9p_attach( _9p_request_data_t * preq9p, u32 * plenout, char * preply)
+int _9p_attach( _9p_request_data_t * preq9p, 
+                cache_inode_client_t * pclient,
+                hash_table_t * ht,
+                u32 * plenout, 
+                char * preply)
 {
   char * cursor = preq9p->_9pmsg + _9P_HDR_SIZE + _9P_TYPE_SIZE ;
 
@@ -63,6 +69,9 @@ int _9p_attach( _9p_request_data_t * preq9p, u32 * plenout, char * preply)
   char * aname_str = NULL ;
   u32 * n_aname = NULL ;
 
+  int rc = 0 ;
+  u32 err = 0 ;
+ 
   struct _9p_qid qid ;
 
   if ( !preq9p || !plenout || !preply )
@@ -78,6 +87,15 @@ int _9p_attach( _9p_request_data_t * preq9p, u32 * plenout, char * preply)
 
   LogDebug( COMPONENT_9P, "TATTACH: tag=%ufid=%u afid=%d uname='%.*s' aname='%.*s' n_uname=%d", 
             (u32)*msgtag, *fid, *afid, (int)*uname_len, uname_str, (int)*aname_len, aname_str, *n_aname ) ;
+
+  /* Try to attach */
+  if( _9p_take_fid( preq9p->pconn, fid ) )
+    {
+      err = EINVAL ;
+      rc = _9p_rerror( preq9p, msgtag, &err, strerror( err ), plenout, preply ) ;
+      return rc ;
+    }
+ 
 
   /* Compute the qid */
   qid.type = _9P_QTDIR ;
