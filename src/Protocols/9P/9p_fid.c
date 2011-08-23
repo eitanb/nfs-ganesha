@@ -57,7 +57,7 @@ unsigned long int _9p_hash_fid_key_value_hash_func(hash_parameter_t * p_hparam,
 {
   _9p_hash_fid_key_t * p9pkey = (_9p_hash_fid_key_t *)buffclef->pdata;
 
-  return (unsigned long int)( (p9pkey->sockfd+1 + p9pkey->fid+1) % p_hparam->index_size ) ;
+  return (unsigned long int)( (p9pkey->sockfd+1 + p9pkey->fid+1 + p9pkey->birth.tv_sec + p9pkey->birth.tv_usec) % p_hparam->index_size ) ;
 } /* _9p_hash_fid_key_value_hash_func */
 
 
@@ -75,13 +75,19 @@ int _9p_compare_key(hash_buffer_t * buff1, hash_buffer_t * buff2)
   _9p_hash_fid_key_t * p9pkey1 = (_9p_hash_fid_key_t *)buff1->pdata;
   _9p_hash_fid_key_t * p9pkey2 = (_9p_hash_fid_key_t *)buff2->pdata;
 
-  if( p9pkey1 == NULL || p9pkey2 == NULL)
+  if( p9pkey1 == NULL || p9pkey2 == NULL )
     return 1;
 
-  if( p9pkey1->sockfd != p9pkey2->sockfd)
+  if( p9pkey1->sockfd != p9pkey2->sockfd )
     return 1;
 
-  if( p9pkey1->fid != p9pkey2->fid)
+  if( p9pkey1->fid != p9pkey2->fid )
+    return 1;
+
+  if( p9pkey1->birth.tv_sec != p9pkey2->birth.tv_sec )
+    return 1;
+
+  if( p9pkey1->birth.tv_usec != p9pkey2->birth.tv_usec )
     return 1;
 
   /* Keys are the same */
@@ -102,6 +108,38 @@ int display_9p_hash_fid_val(hash_buffer_t * pbuff, char *str)
                   ((_9p_qid_t *)pbuff->pdata)->version, 
 	 	  (unsigned long long)((_9p_qid_t *)pbuff->pdata)->path ) ; 
 } /* display_9p_hash_fid_val */
+
+_9p_fid_t * _9p_hash_fid_get( _9p_conn_t * pconn, 
+                              u32 fid,
+                              int * prc )
+{
+ _9p_hash_fid_key_t key ;
+  hash_buffer_t buffkey;
+  hash_buffer_t buffdata;
+  int rc = 0 ;
+
+  if( !pconn || !prc ) 
+    return NULL ;
+
+  /* Prepare struct to be inserted to the Hash */
+  key.sockfd = pconn->sockfd ;
+  key.birth = pconn->birth ;
+  key.fid = fid ;
+
+  buffkey.pdata = (caddr_t)&key ;
+  buffkey.len = sizeof(_9p_hash_fid_key_t);
+
+  /* Call HashTable */
+  if( ( rc = HashTable_Get( ht_fid, 
+                            &buffkey, 
+                            &buffdata ) ) != HASHTABLE_SUCCESS )
+   {
+      *prc = ENOENT ;
+      return NULL ;
+   }
+ 
+  return (_9p_fid_t *)(buffdata.pdata) ;
+} /* _9p_hash_fid_get */
 
 int _9p_hash_fid_update( _9p_conn_t * pconn, 
                          _9p_fid_t  * pfid ) /* This fid has to be obtained from a pool */
@@ -129,7 +167,7 @@ int _9p_hash_fid_update( _9p_conn_t * pconn,
   if( ( rc = HashTable_Test_And_Set( ht_fid, 
                                      &buffkey, 
                                      &buffdata, 
-                                     HASHTABLE_SET_HOW_SET_OVERWRITE ) ) != HASHTABLE_SUCCESS )
+                                     HASHTABLE_SET_HOW_SET_NO_OVERWRITE ) ) != HASHTABLE_SUCCESS )
     return -rc ;
 
   return 0 ;
@@ -137,10 +175,12 @@ int _9p_hash_fid_update( _9p_conn_t * pconn,
 
 int _9p_hash_fid_del( _9p_conn_t * pconn, 
                       u32 fid,
-                      struct prealloc_pool * pfidpool )
+                      _9p_fid_t ** ppoldfid ) 
 {
    _9p_hash_fid_key_t key ;
   hash_buffer_t buffkey;
+  hash_buffer_t old_key, old_value;
+
   int rc = 0 ; 
 
   if( !pconn ) 
@@ -154,8 +194,11 @@ int _9p_hash_fid_del( _9p_conn_t * pconn,
   buffkey.pdata = (caddr_t)&key ;
   buffkey.len = sizeof(_9p_hash_fid_key_t);
 
-  if( (rc = HashTable_Del( ht_fid, &buffkey, NULL, NULL)) != HASHTABLE_SUCCESS )
+  if( (rc = HashTable_Del( ht_fid, &buffkey, &old_key, &old_value)) != HASHTABLE_SUCCESS )
    return -rc ;
+
+  if( ppoldfid != NULL )
+    *ppoldfid = (_9p_fid_t *)old_value.pdata ;
 
   return 0 ;
 } /* 9p_hash_fid_del */
@@ -186,6 +229,23 @@ int _9p_take_fid( _9p_conn_t * pconn,
 
   return 0 ; 
 } /* _9p_take_fid */
+
+int _9p_test_fid(  _9p_conn_t * pconn, 
+                   u32        * pfid )
+{
+  int rc = 0 ;
+
+  if( !pconn || !pfid )
+   return -1 ;
+
+  /* Set the fid as used */
+  P( pconn->lock ) ;
+  rc = FD_SET( *pfid,  &pconn->fidset ) ;
+  V( pconn->lock ) ;
+
+  return rc ; 
+} /* _9p_test_fid */
+
 
 int _9p_release_fid( _9p_conn_t * pconn, 
                      u32        * pfid )

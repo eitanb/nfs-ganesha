@@ -24,10 +24,10 @@
  */
 
 /**
- * \file    9p_rerror.c
+ * \file    9p_clunk.c
  * \brief   9P version
  *
- * 9p_rerror.c : _9P_interpretor, request RERROR
+ * 9p_clunk.c : _9P_interpretor, request ATTACH
  *
  *
  */
@@ -46,32 +46,66 @@
 #include "nfs_core.h"
 #include "stuff_alloc.h"
 #include "log_macros.h"
+#include "cache_inode.h"
+#include "fsal.h"
 #include "9p.h"
 
 
-int _9p_rerror( _9p_request_data_t * preq9p,
-                u16 * msgtag,
-                u32 * err, 
-                char * strerr, /* Null terminated string */
-	        u32 * plenout, 
-                char * preply)
+int _9p_clunk( _9p_request_data_t * preq9p, 
+               void  * pworker_data,
+               u32 * plenout, 
+               char * preply)
 {
   char * cursor = preq9p->_9pmsg + _9P_HDR_SIZE + _9P_TYPE_SIZE ;
+  nfs_worker_data_t * pwkrdata = (nfs_worker_data_t *)pworker_data ;
 
-  if ( !preq9p || !plenout || !preply )
+  u16 * msgtag = NULL ;
+  u32 * fid    = NULL ;
+
+  int rc = 0 ;
+  u32 err = 0 ;
+
+  _9p_fid_t * pfid = NULL ;
+
+  if ( !preq9p || !pworker_data || !plenout || !preply )
    return -1 ;
 
-  /* Build the reply */
-  _9p_setinitptr( cursor, preply, _9P_RERROR ) ;
-  _9p_setptr( cursor, msgtag, u16 ) ;
+  /* Get data */
+  _9p_getptr( cursor, msgtag, u16 ) ; 
+  _9p_getptr( cursor, fid,    u32 ) ; 
 
-  _9p_setstr( cursor, strlen( strerr ), strerr ) ;
-  _9p_setptr( cursor, err, u32 ) ;
+  LogDebug( COMPONENT_9P, "TCLUNK: tag=%u fid=%u", (u32)*msgtag, *fid ) ;
+
+  if( !_9p_hash_fid_del( preq9p->pconn, *fid, &pfid ) )
+   {
+     if( pfid != NULL )
+      {
+        /* Put fid back to pool */
+        memset( (char *)pfid, 0, sizeof( _9p_fid_t ) ) ;
+
+        P( pwkrdata->_9pfid_pool_mutex ) ;
+        ReleaseToPool( pfid, &pwkrdata->_9pfid_pool ) ;
+        V( pwkrdata->_9pfid_pool_mutex ) ;
+      }
+   }
+  else
+   LogEvent( COMPONENT_9P, "TCLUNK: Impossible to delete fid=%u", *fid ) ;
+
+  if( _9p_release_fid( preq9p->pconn, fid ) == -1 )
+   {
+     err = EINVAL ;
+     rc = _9p_rerror( preq9p, msgtag, &err, strerror( err ), plenout, preply ) ;
+     return rc ;
+   }
+
+  /* Build the reply */
+  _9p_setinitptr( cursor, preply, _9P_RCLUNK ) ;
+  _9p_setptr( cursor, msgtag, u16 ) ;
 
   _9p_setendptr( cursor, preply ) ;
   _9p_checkbound( cursor, preply, plenout ) ;
 
-  LogDebug( COMPONENT_9P, "RERROR: err=(%u|%s)", *err, strerr ) ;
+  LogDebug( COMPONENT_9P, "RCLUNK: tag=%u fid=%u", (u32)*msgtag, *fid ) ;
 
   return 1 ;
 }
