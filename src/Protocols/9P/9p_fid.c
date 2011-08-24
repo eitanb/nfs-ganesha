@@ -154,8 +154,6 @@ int _9p_hash_fid_update( _9p_conn_t * pconn,
   if( !pconn || !pfid ) 
     return -1 ;
 
-  HashTable_Print( ht_fid ) ;
-
   /* Prepare struct to be inserted to the Hash */
   key.sockfd = pconn->sockfd ;
   key.birth = pconn->birth ;
@@ -173,8 +171,6 @@ int _9p_hash_fid_update( _9p_conn_t * pconn,
                                      &buffdata, 
                                      HASHTABLE_SET_HOW_SET_NO_OVERWRITE ) ) != HASHTABLE_SUCCESS )
     return -rc ;
-
-  HashTable_Print( ht_fid ) ;
 
   return 0 ;
 } /* _9p_hash_fid_add */
@@ -200,15 +196,11 @@ int _9p_hash_fid_del( _9p_conn_t * pconn,
   buffkey.pdata = (caddr_t)&key ;
   buffkey.len = sizeof(_9p_hash_fid_key_t);
 
-  HashTable_Print( ht_fid ) ;
-
   if( (rc = HashTable_Del( ht_fid, &buffkey, &old_key, &old_value)) != HASHTABLE_SUCCESS )
    return -rc ;
 
   if( ppoldfid != NULL )
     *ppoldfid = (_9p_fid_t *)old_value.pdata ;
-
-  HashTable_Print( ht_fid ) ;
 
   return 0 ;
 } /* 9p_hash_fid_del */
@@ -225,49 +217,4 @@ int _9p_hash_fid_init( _9p_parameter_t * pparam )
   return 0 ;
 } /* _9p_hash_fid_init */
 
-int _9p_take_fid( _9p_conn_t * pconn, 
-                   u32        * pfid )
-{
-
-  if( !pconn || !pfid )
-   return -1 ;
-
-  /* Set the fid as used */
-  P( pconn->lock ) ;
-  FD_SET( *pfid,  &pconn->fidset ) ;
-  V( pconn->lock ) ;
-
-  return 0 ; 
-} /* _9p_take_fid */
-
-int _9p_test_fid(  _9p_conn_t * pconn, 
-                   u32        * pfid )
-{
-  int rc = 0 ;
-
-  if( !pconn || !pfid )
-   return -1 ;
-
-  /* Set the fid as used */
-  P( pconn->lock ) ;
-  rc = FD_SET( *pfid,  &pconn->fidset ) ;
-  V( pconn->lock ) ;
-
-  return rc ; 
-} /* _9p_test_fid */
-
-
-int _9p_release_fid( _9p_conn_t * pconn, 
-                     u32        * pfid )
-{
-  if( !pconn || !pfid )
-   return -1 ;
-
-  /* Set the fid as available */
-  P( pconn->lock ) ;
-  FD_CLR( *pfid,  &pconn->fidset ) ;
-  V( pconn->lock ) ;
-  
-  return 0 ;
-} /* _9p_release_fid */
 
