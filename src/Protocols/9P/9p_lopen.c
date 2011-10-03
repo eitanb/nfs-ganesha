@@ -82,14 +82,14 @@ int _9p_lopen( _9p_request_data_t * preq9p,
   LogDebug( COMPONENT_9P, "TLOPEN: tag=%u fid=%u mode=0x%x",
             (u32)*msgtag, *fid, *mode  ) ;
 
-   if( ( pfid = _9p_hash_fid_get( &preq9p->conn, 
-                                  *fid,
-                                  &rc ) ) == NULL )
-   {
-     err = ENOENT ;
-     rc = _9p_rerror( preq9p, msgtag, &err, strerror( err ), plenout, preply ) ;
-     return rc ;
-   }
+   if( *fid >= _9P_FID_PER_CONN )
+    {
+      err = ERANGE ;
+      rc = _9p_rerror( preq9p, msgtag, &err, plenout, preply ) ;
+      return rc ;
+    }
+ 
+   pfid =  &preq9p->pconn->fids[*fid] ;
 
   _9p_tools_acess2fsal( mode, &fsalaccess ) ;
 
@@ -102,7 +102,7 @@ int _9p_lopen( _9p_request_data_t * preq9p,
                          &cache_status ) != CACHE_INODE_SUCCESS )
    {
      err = EPERM ;
-     rc = _9p_rerror( preq9p, msgtag, &err, strerror( err ), plenout, preply ) ;
+     rc = _9p_rerror( preq9p, msgtag, &err, plenout, preply ) ;
      return rc ;
    }
 

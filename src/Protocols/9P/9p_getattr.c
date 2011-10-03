@@ -101,16 +101,15 @@ int _9p_getattr( _9p_request_data_t * preq9p,
 
   LogDebug( COMPONENT_9P, "TGETATTR: tag=%u fid=%u request_mask=0x%llx",
             (u32)*msgtag, *fid, (unsigned long long)*request_mask ) ;
+ 
+  if( *fid >= _9P_FID_PER_CONN )
+    {
+      err = ERANGE ;
+      rc = _9p_rerror( preq9p, msgtag, &err, plenout, preply ) ;
+      return rc ;
+    }
 
-
-  if( ( pfid = _9p_hash_fid_get( &preq9p->conn, 
-                                 *fid,
-                                 &rc ) ) == NULL )
-   {
-     err = ENOENT ;
-     rc = _9p_rerror( preq9p, msgtag, &err, strerror( err ), plenout, preply ) ;
-     return rc ;
-   }
+  pfid = &preq9p->pconn->fids[*fid] ;
 
   /* Attach point is found, build the requested attributes */
   

@@ -123,23 +123,19 @@ int _9p_attach( _9p_request_data_t * preq9p,
   if( found == FALSE )
     {
       err = ENOENT ;
-      rc = _9p_rerror( preq9p, msgtag, &err, strerror( err ), plenout, preply ) ;
+      rc = _9p_rerror( preq9p, msgtag, &err, plenout, preply ) ;
       return rc ;
     }
 
-
-  /* Get a FID from the pool */
-  P( pwkrdata->_9pfid_pool_mutex ) ;
-  GetFromPool( pfid, &pwkrdata->_9pfid_pool, _9p_fid_t ) ;
-  V( pwkrdata->_9pfid_pool_mutex ) ;
-  if( pfid == NULL )
+  if( *fid >= _9P_FID_PER_CONN )
     {
-      err = ENOMEM ;
-      rc = _9p_rerror( preq9p, msgtag, &err, strerror( err ), plenout, preply ) ;
+      err = ERANGE ;
+      rc = _9p_rerror( preq9p, msgtag, &err, plenout, preply ) ;
       return rc ;
     }
-
+ 
   /* Set pexport and fid id in fid */
+  pfid= &preq9p->pconn->fids[*fid] ;
   pfid->pexport = pexport ;
   pfid->fid = *fid ;
  
@@ -158,12 +154,8 @@ int _9p_attach( _9p_request_data_t * preq9p,
      /* Build the fid creds */
     if( ( err = _9p_tools_get_fsal_op_context_by_name( *uname_len, uname_str, pfid ) ) !=  0 )
      {
-       P( pwkrdata->_9pfid_pool_mutex ) ;
-       ReleaseToPool( pfid, &pwkrdata->_9pfid_pool ) ;
-       V( pwkrdata->_9pfid_pool_mutex ) ;
-   
        err = -err ; /* The returned value from 9p service functions is always negative is case of errors */
-       rc = _9p_rerror( preq9p, msgtag, &err, strerror( err ), plenout, preply ) ;
+       rc = _9p_rerror( preq9p, msgtag, &err, plenout, preply ) ;
        return rc ;
      }
    }
@@ -172,12 +164,8 @@ int _9p_attach( _9p_request_data_t * preq9p,
     /* Build the fid creds */
     if( ( err = _9p_tools_get_fsal_op_context_by_uid( *n_aname, pfid ) ) !=  0 )
      {
-       P( pwkrdata->_9pfid_pool_mutex ) ;
-       ReleaseToPool( pfid, &pwkrdata->_9pfid_pool ) ;
-       V( pwkrdata->_9pfid_pool_mutex ) ;
-   
        err = -err ; /* The returned value from 9p service functions is always negative is case of errors */
-       rc = _9p_rerror( preq9p, msgtag, &err, strerror( err ), plenout, preply ) ;
+       rc = _9p_rerror( preq9p, msgtag, &err, plenout, preply ) ;
        return rc ;
      }
 
@@ -196,12 +184,8 @@ int _9p_attach( _9p_request_data_t * preq9p,
 
   if( pfid->pentry == NULL )
    {
-     P( pwkrdata->_9pfid_pool_mutex ) ;
-     ReleaseToPool( pfid, &pwkrdata->_9pfid_pool ) ;
-     V( pwkrdata->_9pfid_pool_mutex ) ;
-
      err = _9p_tools_errno( cache_status ) ; ;
-     rc = _9p_rerror( preq9p, msgtag, &err, strerror( err ), plenout, preply ) ;
+     rc = _9p_rerror( preq9p, msgtag, &err, plenout, preply ) ;
      return rc ;
    }
 
@@ -213,18 +197,6 @@ int _9p_attach( _9p_request_data_t * preq9p,
 
   /* Cache the attr */
   _9p_tools_fsal_attr2stat( &fsalattr, &pfid->attr ) ;
-
-  /* Had the new fid to the hash */
-  if( ( err = _9p_hash_fid_update( &preq9p->conn, pfid ) ) != 0 )
-   {
-     P( pwkrdata->_9pfid_pool_mutex ) ;
-     ReleaseToPool( pfid, &pwkrdata->_9pfid_pool ) ;
-     V( pwkrdata->_9pfid_pool_mutex ) ;
-
-     rc = _9p_rerror( preq9p, msgtag, &err, strerror( err ), plenout, preply ) ;
-     return rc ;
-   }
- 
 
   /* Build the reply */
   _9p_setinitptr( cursor, preply, _9P_RATTACH ) ;

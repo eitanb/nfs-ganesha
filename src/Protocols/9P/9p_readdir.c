@@ -106,14 +106,14 @@ int _9p_readdir( _9p_request_data_t * preq9p,
   LogDebug( COMPONENT_9P, "TREADDIR: tag=%u fid=%u offset=%llu count=%u",
             (u32)*msgtag, *fid, (unsigned long long)*offset, *count  ) ;
 
-   if( ( pfid = _9p_hash_fid_get( &preq9p->conn, 
-                                  *fid,
-                                  &rc ) ) == NULL )
-   {
-     err = ENOENT ;
-     rc = _9p_rerror( preq9p, msgtag, &err, strerror( err ), plenout, preply ) ;
-     return rc ;
-   }
+  if( *fid >= _9P_FID_PER_CONN )
+    {
+      err = ERANGE ;
+      rc = _9p_rerror( preq9p, msgtag, &err, plenout, preply ) ;
+      return rc ;
+    }
+
+   pfid = &preq9p->pconn->fids[*fid] ;
 
   /* Use Cache Inode to read the directory's content */
   cookie = (unsigned int)*offset ;
@@ -142,7 +142,7 @@ int _9p_readdir( _9p_request_data_t * preq9p,
                           &cache_status) != CACHE_INODE_SUCCESS)
     {
       err = _9p_tools_errno( cache_status ) ; ;
-      rc = _9p_rerror( preq9p, msgtag, &err, strerror( err ), plenout, preply ) ;
+      rc = _9p_rerror( preq9p, msgtag, &err, plenout, preply ) ;
       return rc ;
     }
 
@@ -199,7 +199,7 @@ int _9p_readdir( _9p_request_data_t * preq9p,
         default:
           LogMajor( COMPONENT_9P, "implementation error, you should not see this message !!!!!!" ) ;
           err = EINVAL ;
-          rc = _9p_rerror( preq9p, msgtag, &err, strerror( err ), plenout, preply ) ;
+          rc = _9p_rerror( preq9p, msgtag, &err, plenout, preply ) ;
           return rc ;
           break ;
       }
@@ -223,7 +223,8 @@ int _9p_readdir( _9p_request_data_t * preq9p,
      _9p_setptr( cursor, qid_path, u64 ) ;
      
      /* offset */
-     _9p_setvalue( cursor, i+*offset, u64 ) ;   
+     _9p_setvalue( cursor, i+cookie+1, u64 ) ;   
+
 
      /* Type (again ?) */
      _9p_setptr( cursor, qid_type, u8 ) ;

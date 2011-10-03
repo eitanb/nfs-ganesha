@@ -245,6 +245,12 @@ void nfs_print_param_config()
     printf("\tDrop_Inval_Errors = TRUE ; \n");
   else
     printf("\tDrop_Inval_Errors = FALSE ;\n");
+
+  if(nfs_param.core_param.drop_delay_errors)
+    printf("\tDrop_Delay_Errors = TRUE ; \n");
+  else
+    printf("\tDrop_Delay_Errors = FALSE ;\n");
+
   printf("}\n\n");
 
   printf("NFS_Worker_Param\n{\n");
@@ -281,17 +287,6 @@ void nfs_set_param_default()
 #endif
 #ifdef _USE_9P
   nfs_param._9p_param._9p_port = _9P_PORT ;
-  nfs_param._9p_param.prealloc_fid = NB_PREALLOC_FID_9P ;
-  nfs_param._9p_param.hash_param.index_size = PRIME_9P ;
-  nfs_param._9p_param.hash_param.alphabet_length = 10;    /* Xid is a numerical decimal value */
-  nfs_param._9p_param.hash_param.nb_node_prealloc = NB_PREALLOC_HASH_9P;
-  nfs_param._9p_param.hash_param.hash_func_key = _9p_hash_fid_key_value_hash_func ;
-  nfs_param._9p_param.hash_param.hash_func_rbt = _9p_hash_fid_rbt_hash_func ;
-  nfs_param._9p_param.hash_param.compare_key = _9p_compare_key ;
-  nfs_param._9p_param.hash_param.key_to_str = display_9p_hash_fid_key ;
-  nfs_param._9p_param.hash_param.val_to_str = display_9p_hash_fid_val ;
-  nfs_param._9p_param.hash_param.name = "FID Hash Table" ;
-
 #endif
 #ifdef _USE_QUOTA
   nfs_param.core_param.program[P_RQUOTA] = RQUOTAPROG;
@@ -299,6 +294,7 @@ void nfs_set_param_default()
 #endif
   nfs_param.core_param.drop_io_errors = TRUE;
   nfs_param.core_param.drop_inval_errors = FALSE;
+  nfs_param.core_param.drop_delay_errors = TRUE;
   nfs_param.core_param.core_dump_size = 0;
   nfs_param.core_param.nb_max_fd = -1;       /* Use OS's default */
   nfs_param.core_param.stats_update_delay = 60;
@@ -1848,15 +1844,6 @@ static void nfs_Init(const nfs_start_info_t * p_start_info)
                nfs_param.worker_param.nb_client_id_prealloc,
                nfs_client_id_t, NULL, NULL);
       NamePool(&workers_data[i].clientid_pool, "Client ID Pool %d", i);
-
-#ifdef _USE_9P
-      /* Initialize, but do not pre-alloc client-id pool */
-      InitPool(&workers_data[i]._9pfid_pool,
-               nfs_param._9p_param.prealloc_fid,
-               _9p_fid_t, NULL, NULL);
-      NamePool(&workers_data[i]._9pfid_pool, "9P FID Pool %d", i);
-
-#endif
 
       LogDebug(COMPONENT_INIT, "worker data #%d successfully initialized", i);
     }                           /* for i */
