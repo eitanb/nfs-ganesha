@@ -8,8 +8,10 @@ lib9p_la_SOURCES = 9p_interpretor.c  \
                    9p_read_conf.c    \
                    9p_attach.c       \
                    9p_clunk.c        \
+                   9p_create.c       \
                    9p_getattr.c      \
                    9p_lopen.c        \
+                   9p_mkdir.c        \
                    9p_readdir.c      \
                    9p_version.c      \
                    9p_walk.c         \

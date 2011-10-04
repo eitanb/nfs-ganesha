@@ -87,7 +87,7 @@ const int _9ptabindex[] =
 const _9p_function_desc_t _9pfuncdesc[] = {
         { _9p_dummy, "_9P_TSTATFS"  },
         { _9p_lopen, "_9P_TLOPEN" },
-        { _9p_dummy, "_9P_TLCREATE" },
+        { _9p_create, "_9P_TLCREATE" },
         { _9p_dummy, "_9P_TSYMLINK" },
         { _9p_dummy, "_9P_TMKNOD" },
         { _9p_dummy, "_9P_TRENAME" },
@@ -101,7 +101,7 @@ const _9p_function_desc_t _9pfuncdesc[] = {
         { _9p_dummy, "_9P_TLOCK" },
         { _9p_dummy, "_9P_TGETLOCK" },
         { _9p_dummy, "_9P_TLINK" },
-        { _9p_dummy, "_9P_TMKDIR" },
+        { _9p_mkdir, "_9P_TMKDIR" },
         { _9p_dummy, "_9P_TRENAMEAT" },
         { _9p_dummy, "_9P_TUNLINKAT" },
         { _9p_version, "_9P_TVERSION" },
