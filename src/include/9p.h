@@ -471,10 +471,20 @@ int _9p_create( _9p_request_data_t * preq9p,
                 u32 * plenout, 
                 char * preply) ;
 
+int _9p_flush( _9p_request_data_t * preq9p, 
+               void * pworker_data,
+               u32 * plenout, 
+               char * preply) ;
+
 int _9p_getattr( _9p_request_data_t * preq9p, 
                  void * pworker_data,
                  u32 * plenout, 
                  char * preply) ;
+
+int _9p_link( _9p_request_data_t * preq9p, 
+              void * pworker_data,
+              u32 * plenout, 
+              char * preply) ;
 
 int _9p_lopen( _9p_request_data_t * preq9p, 
                void * pworker_data,
@@ -505,6 +515,31 @@ int _9p_symlink( _9p_request_data_t * preq9p,
                  void * pworker_data,
                  u32 * plenout, 
                  char * preply) ;
+
+int _9p_remove( _9p_request_data_t * preq9p, 
+                void * pworker_data,
+                u32 * plenout, 
+                char * preply) ;
+
+int _9p_rename( _9p_request_data_t * preq9p, 
+                void * pworker_data,
+                u32 * plenout, 
+                char * preply) ;
+
+int _9p_renameat( _9p_request_data_t * preq9p, 
+                  void * pworker_data,
+                  u32 * plenout, 
+                  char * preply) ;
+
+int _9p_statfs( _9p_request_data_t * preq9p, 
+                void * pworker_data,
+                u32 * plenout, 
+                char * preply) ;
+
+int _9p_unlinkat( _9p_request_data_t * preq9p, 
+                  void * pworker_data,
+                  u32 * plenout, 
+                  char * preply) ;
 
 int _9p_version( _9p_request_data_t * preq9p, 
                  void * pworker_data,

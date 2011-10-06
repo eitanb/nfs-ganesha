@@ -85,12 +85,12 @@ const int _9ptabindex[] =
 };
 
 const _9p_function_desc_t _9pfuncdesc[] = {
-        { _9p_dummy, "_9P_TSTATFS"  },
+        { _9p_statfs, "_9P_TSTATFS"  },
         { _9p_lopen, "_9P_TLOPEN" },
         { _9p_create, "_9P_TLCREATE" },
         { _9p_symlink, "_9P_TSYMLINK" },
         { _9p_dummy, "_9P_TMKNOD" },
-        { _9p_dummy, "_9P_TRENAME" },
+        { _9p_rename, "_9P_TRENAME" },
         { _9p_readlink, "_9P_TREADLINK" },
         { _9p_getattr, "_9P_TGETATTR"},
         { _9p_setattr, "_9P_TSETATTR" },
@@ -100,21 +100,21 @@ const _9p_function_desc_t _9pfuncdesc[] = {
         { _9p_dummy, "_9P_TFSYNC" },
         { _9p_dummy, "_9P_TLOCK" },
         { _9p_dummy, "_9P_TGETLOCK" },
-        { _9p_dummy, "_9P_TLINK" },
+        { _9p_link, "_9P_TLINK" },
         { _9p_mkdir, "_9P_TMKDIR" },
-        { _9p_dummy, "_9P_TRENAMEAT" },
-        { _9p_dummy, "_9P_TUNLINKAT" },
+        { _9p_renameat, "_9P_TRENAMEAT" },
+        { _9p_unlinkat, "_9P_TUNLINKAT" },
         { _9p_version, "_9P_TVERSION" },
         { _9p_dummy, "_9P_TAUTH" },
         { _9p_attach, "_9P_TATTACH" },
-        { _9p_dummy, "_9P_TFLUSH" },
+        { _9p_flush, "_9P_TFLUSH" },
         { _9p_walk, "_9P_TWALK" },
         { _9p_dummy, "_9P_TOPEN" },
         { _9p_dummy, "_9P_TCREATE" },
         { _9p_dummy, "_9P_TREAD" },
         { _9p_dummy, "_9P_TWRITE" },
         { _9p_clunk, "_9P_TCLUNK" },
-        { _9p_dummy, "_9P_TREMOVE" },
+        { _9p_remove, "_9P_TREMOVE" },
         { _9p_dummy, "_9P_TSTAT" },
         { _9p_dummy, "_9P_TWSTAT" },
         { _9p_dummy, "no function" }
@@ -128,10 +128,14 @@ int _9p_dummy( _9p_request_data_t * preq9p,
 {
   char * msgdata = preq9p->_9pmsg + _9P_HDR_SIZE ;
   u8 * pmsgtype = NULL ;
+  u16 msgtag = 0 ;
+  int err = ENOTSUP ;
 
   /* Get message's type */
   pmsgtype = (u8 *)msgdata ;
-  LogEvent( COMPONENT_9P,  "(%u|%s) not implemented yet", *pmsgtype,  _9pfuncdesc[_9ptabindex[*pmsgtype]].funcname  ) ;
+  LogEvent( COMPONENT_9P,  "(%u|%s) not implemented yet, returning ENOTSUP", *pmsgtype,  _9pfuncdesc[_9ptabindex[*pmsgtype]].funcname  ) ;
+
+  _9p_rerror( preq9p, &msgtag, &err, plenout, preply ) ;
 
   return -1 ;
 } /* _9p_dummy */
@@ -171,9 +175,7 @@ void _9p_process_request( _9p_request_data_t * preq9p, nfs_worker_data_t * pwork
                                                                       &outdatalen, 
                                                                       replydata ) ) < 0 )  ||
              ( send( preq9p->pconn->sockfd, replydata, outdatalen, 0 ) != outdatalen ) )
-     {
-           printf( "%s: Error \n", _9pfuncdesc[_9ptabindex[*pmsgtype]].funcname ) ;
-     }
+     LogDebug( COMPONENT_9P, "%s: Error", _9pfuncdesc[_9ptabindex[*pmsgtype]].funcname ) ;
 
   return ;
 } /* _9p_process_request */
