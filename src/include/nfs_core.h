@@ -50,6 +50,7 @@
 #include "mfsl.h"
 #endif
 #include "cache_inode.h"
+#include "sal_data.h"
 #include "cache_content.h"
 #include "nfs_stat.h"
 #include "external_tools.h"
@@ -63,6 +64,9 @@
 #include "nfs_dupreq.h"
 #include "err_LRU_List.h"
 #include "err_HashTable.h"
+
+#include "cache_inode.h"
+#include "fsal_cb.h"
 
 #ifdef _USE_NFS4_1
 #include "nfs41_session.h"
@@ -148,8 +152,8 @@
 #define NFS_PORT             2049
 #define RQUOTA_PORT           875
 #define	RQCRED_SIZE	     400        /* this size is excessive */
-#define NFS_SEND_BUFFER_SIZE 32768
-#define NFS_RECV_BUFFER_SIZE 32768
+#define NFS_DEFAULT_SEND_BUFFER_SIZE 32768
+#define NFS_DEFAULT_RECV_BUFFER_SIZE 32768
 
 /* Default 'Raw Dev' values */
 #define GANESHA_RAW_DEV_MAJOR 168
@@ -289,6 +293,11 @@ typedef struct nfs_core_param__
   char fsal_shared_library[MAXPATHLEN];
   int tcp_fridge_expiration_delay ;
   unsigned int core_options;
+  unsigned int max_send_buffer_size; /* Size of RPC send buffer */
+  unsigned int max_recv_buffer_size; /* Size of RPC recv buffer */
+#ifdef _USE_NLM
+  bool_t nsm_use_caller_name;
+#endif
 } nfs_core_parameter_t;
 
 typedef struct nfs_ip_name_param__
@@ -315,11 +324,6 @@ typedef struct nfs_idmap_cache_param__
   char mapfile[MAXPATHLEN];
 } nfs_idmap_cache_parameter_t;
 
-typedef struct nfs_state_id_param__
-{
-  hash_parameter_t hash_param;
-} nfs_state_id_parameter_t;
-
 #ifdef _USE_NFS4_1
 typedef struct nfs_session_id_param__
 {
@@ -327,10 +331,12 @@ typedef struct nfs_session_id_param__
 } nfs_session_id_parameter_t;
 #endif
 
-typedef struct nfs_open_owner_param__
+typedef struct nfs_fsal_cb_param__
 {
-  hash_parameter_t hash_param;
-} nfs_open_owner_parameter_t;
+  struct prealloc_pool event_pool;
+  unsigned int nb_event_data_prealloc;
+  hash_table_t *ht; /* cache inode hashtable */
+} nfs_fsal_cb_parameter_t;
 
 typedef char entry_name_array_item_t[FSAL_MAX_NAME_LEN];
 
@@ -360,6 +366,9 @@ typedef struct nfs_param__
 #ifdef _USE_9P
   _9p_parameter_t _9p_param ;
 #endif
+#ifdef _USE_FSAL_CB
+  nfs_fsal_cb_parameter_t fsal_cb_param;
+#endif
 #ifdef _HAVE_GSSAPI
   nfs_krb5_parameter_t krb5_param;
 #endif  
@@ -372,7 +381,12 @@ typedef struct nfs_param__
   pnfs_parameter_t pnfs_param;
 #endif                          /* _USE_PNFS */
 #endif                          /* _USE_NFS4_1 */
-  nfs_open_owner_parameter_t open_owner_param;
+  nfs4_owner_parameter_t nfs4_owner_param;
+#ifdef _USE_NLM
+  hash_parameter_t nsm_client_hash_param;
+  hash_parameter_t nlm_client_hash_param;
+  hash_parameter_t nlm_owner_hash_param;
+#endif
   nfs_cache_layers_parameter_t cache_layers_param;
 #ifdef _USE_SHARED_FSAL
   unsigned int nb_loaded_fsal ;
@@ -390,6 +404,7 @@ typedef struct nfs_param__
   buddy_parameter_t buddy_param_worker;
   buddy_parameter_t buddy_param_admin;
   buddy_parameter_t buddy_param_tcp_mgr;
+  buddy_parameter_t buddy_param_fsal_cb;
 #endif
 
 #ifdef _USE_MFSL
@@ -717,14 +732,6 @@ int nfs_client_id_set(clientid4 clientid,
 int nfs_client_id_compute(char *name, clientid4 * pclientid);
 int nfs_client_id_basic_compute(char *name, clientid4 * pclientid);
 
-int display_open_owner_val(hash_buffer_t * pbuff, char *str);
-int display_open_owner_key(hash_buffer_t * pbuff, char *str);
-int compare_open_owner(hash_buffer_t * buff1, hash_buffer_t * buff2);
-unsigned long open_owner_value_hash_func(hash_parameter_t * p_hparam,
-                                         hash_buffer_t * buffclef);
-unsigned long open_owner_rbt_hash_func(hash_parameter_t * p_hparam,
-                                       hash_buffer_t * buffclef);
-
 int display_client_id(hash_buffer_t * pbuff, char *str);
 int display_client_id_reverse(hash_buffer_t * pbuff, char *str);
 int display_client_id_val(hash_buffer_t * pbuff, char *str);
@@ -763,20 +770,6 @@ unsigned long int namemapper_value_hash_func(hash_parameter_t * p_hparam,
 unsigned long idmapper_value_hash_func(hash_parameter_t * p_hparam,
                                        hash_buffer_t * buffclef);
 
-int nfs_convert_open_owner(open_owner4 * pnfsowoner,
-                           cache_inode_open_owner_name_t * pname_owner);
-void nfs_open_owner_PrintAll(void);
-int nfs_open_owner_Del(cache_inode_open_owner_name_t * pname);
-int nfs_open_owner_Update(cache_inode_open_owner_name_t * pname,
-                          cache_inode_open_owner_t * popen_owner);
-int nfs_open_owner_Get_Pointer(cache_inode_open_owner_name_t * pname,
-                               cache_inode_open_owner_t * *popen_owner);
-int nfs_open_owner_Get(cache_inode_open_owner_name_t * pname,
-                       cache_inode_open_owner_t * popen_owner);
-int nfs_open_owner_Set(cache_inode_open_owner_name_t * pname,
-                       cache_inode_open_owner_t * popen_owner);
-int nfs4_Init_open_owner(nfs_open_owner_parameter_t param);
-
 int idmap_populate(char *path, idmap_type_t maptype);
 
 int idmap_gid_init(nfs_idmap_cache_parameter_t param);
@@ -788,9 +781,6 @@ int uidgidmap_init(nfs_idmap_cache_parameter_t param);
 
 int display_idmapper_val(hash_buffer_t * pbuff, char *str);
 int display_idmapper_key(hash_buffer_t * pbuff, char *str);
-
-int display_state_id_val(hash_buffer_t * pbuff, char *str);
-int display_state_id_key(hash_buffer_t * pbuff, char *str);
 
 int compare_idmapper(hash_buffer_t * buff1, hash_buffer_t * buff2);
 int compare_namemapper(hash_buffer_t * buff1, hash_buffer_t * buff2);
@@ -831,20 +821,6 @@ int namemap_clear();
 void idmap_get_stats(idmap_type_t maptype, hash_stat_t * phstat,
                      hash_stat_t * phstat_reverse);
 
-int nfs4_BuildStateId_Other(cache_entry_t * pentry,
-                            fsal_op_context_t * pcontext,
-                            cache_inode_open_owner_t * popen_owner, char *other);
-int nfs4_Check_Stateid(struct stateid4 *pstate, cache_entry_t * pentry,
-                       clientid4 clientid);
-int nfs4_is_lease_expired(cache_entry_t * pentry);
-int nfs4_Init_state_id(nfs_state_id_parameter_t param);
-int nfs4_State_Set(char other[12], cache_inode_state_t * pstate_data);
-int nfs4_State_Get(char other[12], cache_inode_state_t * pstate_data);
-int nfs4_State_Get_Pointer(char other[12], cache_inode_state_t * *pstate_data);
-int nfs4_State_Del(char other[12]);
-int nfs4_State_Update(char other[12], cache_inode_state_t * pstate_data);
-void nfs_State_PrintAll(void);
-
 int fridgethr_get( pthread_t * pthrid, void *(*thrfunc)(void*), void * thrarg ) ;
 fridge_entry_t * fridgethr_freeze( ) ;
 int fridgethr_init() ;
@@ -878,5 +854,8 @@ int nfs_Init_dupreq(nfs_rpc_dupreq_parameter_t param);
 extern const nfs_function_desc_t *INVALID_FUNCDESC;
 const nfs_function_desc_t *nfs_rpc_get_funcdesc(nfs_request_data_t * preqnfs);
 int nfs_rpc_get_args(nfs_request_data_t * preqnfs, const nfs_function_desc_t *pfuncdesc);
+
+void create_fsal_cb_threads();
+void nfs_Init_FSAL_CB();
 
 #endif                          /* _NFS_CORE_H */
