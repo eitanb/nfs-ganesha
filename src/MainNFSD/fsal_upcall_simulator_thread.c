@@ -212,7 +212,6 @@ void *upcall_simulator_thread(void *UnusedArgument)
   /* Thread's infinite loop */
   while(1)
     {
-        sleep( 1 ) ;
         if( ( pentry = choose_pentry( mydata.ht) ) != NULL )
          {
            LogCrit( COMPONENT_CACHE_INODE, "About to invalidate entry %p type=%u", pentry, pentry->internal_md.type ) ;
