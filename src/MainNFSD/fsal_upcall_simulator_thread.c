@@ -103,7 +103,7 @@ static cache_entry_t * choose_pentry( hash_table_t * ht)
         pentry = (cache_entry_t *) (pdata->buffval.pdata) ;
 
         /* No file invalidation for the moment (file can handle state) */
-        if( ( counter >= 10 ) && ( pentry->internal_md.type == REGULAR_FILE ) )
+        if( counter >= 10 ) 
          return pentry ;
 
         RBT_INCREMENT(it);
@@ -212,7 +212,6 @@ void *upcall_simulator_thread(void *UnusedArgument)
   /* Thread's infinite loop */
   while(1)
     {
-        sleep( 1 ) ;
         if( ( pentry = choose_pentry( mydata.ht) ) != NULL )
          {
            LogCrit( COMPONENT_CACHE_INODE, "About to invalidate entry %p type=%u", pentry, pentry->internal_md.type ) ;
