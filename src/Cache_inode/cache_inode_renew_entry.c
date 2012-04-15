@@ -308,17 +308,18 @@ cache_inode_status_t cache_inode_renew_entry(cache_entry_t * pentry,
 	  int i = 0;
 	  
 	  d_node = avltree_first(&pentry->object.dir.avl);
-      	  do {
+      	  while (d_node != NULL) {
               d_dirent = avltree_container_of(d_node, cache_inode_dir_entry_t,
 					      node_hk);
 	      if (d_dirent->pentry->internal_md.valid_state == VALID) {
-	          FSAL_name2str(&(d_dirent->name), name, 1023);
+	          FSAL_name2str(&(d_dirent->name), name, sizeof(name)-1);
                   LogDebug(COMPONENT_CACHE_INODE,
                            "cache_inode_renew_entry: Entry %d %s",
                            i, name);
 	      }
 	      i++;
-          } while ((d_node = avltree_next(d_node)));
+	      d_node = avltree_next(d_node);
+          }
         }
 
       /* Do the getattr if it had not being done before */
@@ -420,17 +421,18 @@ cache_inode_status_t cache_inode_renew_entry(cache_entry_t * pentry,
 	  int i = 0;
 	  
 	  d_node = avltree_first(&pentry->object.dir.avl);
-      	  do {
+      	  while (d_node != NULL) {
               d_dirent = avltree_container_of(d_node, cache_inode_dir_entry_t,
 					      node_hk);
 	      if (d_dirent->pentry->internal_md.valid_state == VALID) {
-	          FSAL_name2str(&(d_dirent->name), name, 1023);
+	          FSAL_name2str(&(d_dirent->name), name, sizeof(name)-1);
                   LogDebug(COMPONENT_CACHE_INODE,
                            "cache_inode_renew_entry: Entry %d %s",
                            i, name);
 	      }
 	      i++;
-          } while ((d_node = avltree_next(d_node)));
+	      d_node = avltree_next(d_node);
+          }
         }
 
       pfsal_handle = &pentry->handle;
